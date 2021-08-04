@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<head>
+  <title>Salves</title>
+</head>
+<body>
+  <h1>Salves</h1>
+
+  <h2>Sur cette page, préparez votre opération.</h2>
+
+  <form>
+    <h3>Intervalle temporel :</h3>
+
+    <label for="startTime">De</label>
+    <input id="startTime" type="time" />
+
+    <label for="endTime">à</label>
+    <input id="endTime" type="time" />
+
+    <p><i>Exemple : de 20:00 à 20:10</i></p>
+  </form>
+
+  <p>Lien à partager : <a id="shareableLink" href=""></a> <button type="button" id="shareableLinkCopier">cliquez ici pour copier</button></p>
+</body>
+
+<script>
+  let shareableLinkOriginalUrl = window.location.href.replace("index.html", "planner.html")
+  if (!shareableLinkOriginalUrl.match("planner.html")) shareableLinkOriginalUrl += "planner.html"
+  let shareableLink = shareableLinkOriginalUrl
+
+  function setShareableLink() {
+    const startTime = document.querySelector("form #startTime").value
+    const endTime = document.querySelector("form #endTime").value
+    const today = new Date();
+    const startDate = new Date(today.toDateString() + ' ' + startTime)
+    const endDate = new Date(today.toDateString() + ' ' + endTime)
+
+    let queryParameters = []
+
+    if (startTime) queryParameters.push("startTime=" + startTime)
+    if (endTime) queryParameters.push("endTime=" + endTime)
+
+    shareableLink = shareableLinkOriginalUrl + "?" + queryParameters.join("&")
+    document.querySelector("#shareableLink").textContent = shareableLink
+    document.querySelector("#shareableLink").href = shareableLink
+  }
+  setShareableLink()
+
+  document.querySelector("form #startTime").addEventListener("change", setShareableLink)
+  document.querySelector("form #endTime").addEventListener("change", setShareableLink)
+
+  // Copies a string to the clipboard. Must be called from within an
+  // event handler such as click. May return false if it failed, but
+  // this is not always possible. Browser support for Chrome 43+,
+  // Firefox 42+, Safari 10+, Edge and Internet Explorer 10+.
+  // Internet Explorer: The clipboard feature may be disabled by
+  // an administrator. By default a prompt is shown the first
+  // time the clipboard is used (per session).
+  function copyToClipboard(text) {
+    if (window.clipboardData && window.clipboardData.setData) {
+      // Internet Explorer-specific code path to prevent textarea being shown while dialog is visible.
+      return window.clipboardData.setData("Text", text);
+    }
+    else if (document.queryCommandSupported && document.queryCommandSupported("copy")) {
+      var textarea = document.createElement("textarea");
+      textarea.textContent = text;
+      textarea.style.position = "fixed";  // Prevent scrolling to bottom of page in Microsoft Edge.
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+          return document.execCommand("copy");  // Security exception may be thrown by some browsers.
+      }
+      catch (ex) {
+          console.warn("Copy to clipboard failed.", ex);
+          return false;
+      }
+      finally {
+          document.body.removeChild(textarea);
+      }
+    }
+  }
+  document.querySelector("#shareableLinkCopier").addEventListener("click", () => {
+    copyToClipboard(document.querySelector("#shareableLink").textContent)
+    document.querySelector("#shareableLinkCopier").textContent = "texte copié"
+    setTimeout(() => document.querySelector("#shareableLinkCopier").textContent = "cliquez ici pour copier", 2000)
+  })
+
+</script>
+</html>

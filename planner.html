@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<head>
+  <title>Salves</title>
+  <style>
+    .unitsAvailableRow, .unitsAvailableRowCityName, .unitsAvailableRowUnits, h3 {
+      display: inline;
+    }
+
+    .unitsAvailableRow .unitsAvailableRowUnits input {
+      width: 50px;
+    }
+
+    .unitsAvailableRow {
+      display: inline;
+    }
+
+    #resultsContainer {
+      margin-top: 64px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Salves</h1>
+
+  <h2>Sur cette page, saisissez vos effectifs</h2>
+
+  <form>
+    <button type="button" onclick="addRow()">Ajouter une ville</button>
+    <div id="unitsAvailable"></div>
+    <button type="button" onclick="submitForm()">Valider</button>
+  </form>
+
+  <div id="resultsContainer">
+    <h3>Liste d'ordres à donner (heures d'arrivées) :</h3>
+
+    <div id="results"></div>
+  </div>
+</body>
+
+
+
+
+
+
+<script>
+  const maxPopulation = 4664
+  const unitsAvailableElement = document.querySelector("#unitsAvailable")
+  const resultsElement = document.querySelector("#results")
+  let inputRowIds = []
+
+  let queryParameters = {}
+  window.location.search
+    .replace("?", "")
+    .split("&")
+    .forEach(queryParameterString => {
+      const keyValue = queryParameterString.split("=")
+
+      queryParameters[keyValue[0]] = keyValue[1]
+    })
+    
+  const startDate = new Date(new Date().toDateString() + ' ' + queryParameters.startTime)
+  const endDate = new Date(new Date().toDateString() + ' ' + queryParameters.endTime)
+
+  const startTimestamp = startDate.getTime()
+  const endTimestamp = endDate.getTime()
+  const delayPerPopulation = (endTimestamp - startTimestamp) / maxPopulation
+
+  function getId() {
+    let inputRowId = ""
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+
+    for (let i = 0; i < 20; i++) {
+      const characterIndex = Math.floor(Math.random() * characters.length)
+      const character = characters[characterIndex]
+      inputRowId += character
+    }
+
+    if (inputRowIds.find(existingInputRowId => existingInputRowId === inputRowId)) {
+      inputRowId = getId()
+    } else {
+      inputRowIds.push(inputRowId)
+    }
+
+    return inputRowId
+  }
+
+  function addRow() {
+    const unitsAvailableRowElement = document.createElement("div")
+    unitsAvailableElement.append(unitsAvailableRowElement)
+    const inputRowId = getId()
+    unitsAvailableRowElement.outerHTML = `
+      <div class="unitsAvailableRow" data-inputrowid="${inputRowId}">
+        <div class="unitsAvailableRowCityName">
+          <label for="cityName">Nom de ville : </label>
+          <input id="cityName"/>
+        </div>
+
+        <div class="unitsAvailableRowUnits">
+          <h3>Nombre d'unités disponibles : </h3>
+
+          <label for="unitBfs">BF</label>
+          <input id="unitBfs" type="number" />
+
+          <label for="unitTrieres">Trières</label>
+          <input id="unitTrieres" type="number" />
+
+          <button type="button" onclick="deleteRow('${inputRowId}')">Supprimer</button>
+
+          <br />
+        </div>
+      </div>
+    `
+  }
+
+  function deleteRow(inputRowId) {
+    const row = document.querySelector(`.unitsAvailableRow[data-inputrowid='${inputRowId}']`)
+    const inputRowIdIndex = inputRowIds.find(existingInputRowId => existingInputRowId === inputRowId)
+    inputRowIds = inputRowIds.slice(0, inputRowIdIndex).concat(...inputRowIds.slice(inputRowIdIndex + 1, inputRowIds.length))
+    row.remove()
+  }
+
+  function submitForm() {
+    const unitStats = {
+      bfs: { damage: 200, population: 10 },
+      trieres: { damage: 250, population: 16},
+    }
+    const unitsAvailableRowElements = [...document.querySelectorAll(".unitsAvailableRow")]
+
+    const cityDatas = unitsAvailableRowElements.map(unitsAvailableRowElement => {
+      return {
+        name: unitsAvailableRowElement.querySelector("#cityName").value || "Nom indéfini",
+        unitsAvailable: {
+          bfs: Number(unitsAvailableRowElement.querySelector("#unitBfs").value) || 0,
+          trieres: Number(unitsAvailableRowElement.querySelector("#unitTrieres").value) || 0,
+        }
+      }
+    })
+
+    const cityRawStats = cityDatas.map(cityData => {
+      return {
+        name: cityData.name,
+        totalDamage: Object.keys(cityData.unitsAvailable).reduce((totalDamage, nextUnitName) => {
+          const newTotalDamage = totalDamage + (cityData.unitsAvailable[nextUnitName] * unitStats[nextUnitName].damage)
+          return newTotalDamage
+        }, 0),
+        totalPopulation: Object.keys(cityData.unitsAvailable).reduce((totalPopulation, nextUnitName) => {
+          const newTotalPopulation = totalPopulation + (cityData.unitsAvailable[nextUnitName] * unitStats[nextUnitName].population)
+          return newTotalPopulation
+        }, 0),
+        unitsAvailable: {
+          bfs: cityData.unitsAvailable.bfs,
+          trieres: cityData.unitsAvailable.trieres,
+        }
+      }
+    })
+
+    const sortedRawStats = cityRawStats.sort((a, b) => b.totalDamage - a.totalDamage)
+
+    const filteredRawStats = cityRawStats.filter(cityRawStat => cityRawStat.totalDamage > 0)
+
+    const cityTimings = filteredRawStats.map(filteredRawStat => {
+      const timing = new Date(endTimestamp - (filteredRawStat.totalPopulation * delayPerPopulation))
+
+      return {
+        name: filteredRawStat.name,
+        timing: timing,
+        unitsAvailable: {
+          bfs: filteredRawStat.unitsAvailable.bfs,
+          trieres: filteredRawStat.unitsAvailable.trieres,
+        }
+      }
+    })
+
+    resultsElement.innerHTML = ""
+
+    const resultRowElements = cityTimings.map(cityTiming => {
+      const resultRowElement = document.createElement("div")
+      resultsElement.appendChild(resultRowElement)
+
+      const hours = ("0" + cityTiming.timing.getHours()).slice(-2)
+      const minutes = ("0" + cityTiming.timing.getMinutes()).slice(-2)
+      const seconds = ("0" + cityTiming.timing.getSeconds()).slice(-2)
+
+      const resultRowId = getId()
+      const formattedTime = hours + ":" + minutes + ":" + seconds
+      resultRowElement.outerHTML = `
+        <div>
+          <p style="display:inline;" data-resultrowid="${resultRowId}">
+            ${cityTiming.name} :
+            ${formattedTime} <button type="button" id="shareableLinkCopier" onclick="copyToClipboard('${formattedTime}')">copier</button></p>
+            ${cityTiming.unitsAvailable.bfs ? cityTiming.unitsAvailable.bfs + " BFs " : ""}
+            ${cityTiming.unitsAvailable.trieres ? cityTiming.unitsAvailable.trieres + " trieres " : ""}
+          </p>
+        </div>
+      `
+
+    })
+  }
+
+  // Copies a string to the clipboard. Must be called from within an
+  // event handler such as click. May return false if it failed, but
+  // this is not always possible. Browser support for Chrome 43+,
+  // Firefox 42+, Safari 10+, Edge and Internet Explorer 10+.
+  // Internet Explorer: The clipboard feature may be disabled by
+  // an administrator. By default a prompt is shown the first
+  // time the clipboard is used (per session).
+  function copyToClipboard(text) {
+    if (window.clipboardData && window.clipboardData.setData) {
+      // Internet Explorer-specific code path to prevent textarea being shown while dialog is visible.
+      return window.clipboardData.setData("Text", text);
+    }
+    else if (document.queryCommandSupported && document.queryCommandSupported("copy")) {
+      var textarea = document.createElement("textarea");
+      textarea.textContent = text;
+      textarea.style.position = "fixed";  // Prevent scrolling to bottom of page in Microsoft Edge.
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+          return document.execCommand("copy");  // Security exception may be thrown by some browsers.
+      }
+      catch (ex) {
+          console.warn("Copy to clipboard failed.", ex);
+          return false;
+      }
+      finally {
+          document.body.removeChild(textarea);
+      }
+    }
+  }
+
+  addRow()
+</script>
